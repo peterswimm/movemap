@@ -230,6 +230,6 @@ The Toilville system made this materially cheaper and faster. The `CLAUDE.md` pr
 
 This module is released under the same terms as the move-everything repository. See the project root for the license.
 
-The spirit of that release is straightforward: I have benefited enormously from the open work of others — bobbydigitales mapping the Move's hardware, grahack documenting the M8's LPP layout, the YURS authors building a scriptable Live bridge, the Focusrite team publishing their programmer reference. None of that work was owed to me and all of it made this possible. Releasing this back under the same terms is the only appropriate response.
+The spirit of that release is straightforward: I have benefited enormously from the open work of others — REDACTED mapping the Move's hardware, grahack documenting the M8's LPP layout, the YURS authors building a scriptable Live bridge, the Focusrite team publishing their programmer reference. None of that work was owed to me and all of it made this possible. Releasing this back under the same terms is the only appropriate response.
 
 If this module saves you time, helps you understand the protocol, or gives you something to fork — that's the point. Attribution is appreciated but not required. Improvement is welcomed. Pay it forward when you can.
