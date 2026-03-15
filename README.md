@@ -155,9 +155,7 @@ MoveMap was built on the work of many people in the Move, M8, and Ableton commun
 
 ### move-anything
 
-The foundation for all Move Everything modules. Thanks to [bobbydigitales](https://github.com/bobbydigitales/move-anything) and every contributor who mapped out the Move's hardware interface and built the open ecosystem this module runs on.
-
-Special thanks to **Tim Lamb** for early LPP protocol research and community contributions that informed the M8 ↔ Move mapping work.
+The foundation for all Move Everything modules. Thanks to REDACTED and every contributor who mapped out the Move's hardware interface and built the open ecosystem this module runs on.
 
 ### Dirtywave M8
 
