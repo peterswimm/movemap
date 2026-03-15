@@ -27,7 +27,7 @@ MoveMap takes over the Move's full UI in shadow mode. It maps Move's pads, knobs
 
 ## Requirements
 
-- [Move Everything](https://github.com/charlesvestal/move-anything) host installed on your Ableton Move
+- [Move Everything](https://github.com/charlesvestal/move-everything) host installed on your Ableton Move
 - Dirtywave M8 (for M8 mode) connected to Move's USB-A port
 - [YURS remote script](https://forum.yaeltex.com/t/yurs-yaeltex-universal-remote-script-for-ableton-live/161) installed in Ableton Live (for Ableton Live mode)
   - Configure YURS input/output to the Move's USB MIDI port
@@ -153,9 +153,10 @@ You can add as many banks as you like. Edit `src/config/custom_banks.json` by ha
 
 MoveMap was built on the work of many people in the Move, M8, and Ableton communities.
 
-### move-anything
+### Move Everything
 
-The foundation for all Move Everything modules. Thanks to REDACTED and every contributor who mapped out the Move's hardware interface and built the open ecosystem this module runs on.
+The host runtime this module runs on. Thanks to every contributor who built the open ecosystem that makes Move modules possible:
+[github.com/charlesvestal/move-everything](https://github.com/charlesvestal/move-everything)
 
 ### Dirtywave M8
 
@@ -211,7 +212,7 @@ This module is approximately **~2,000 lines** across all files. Rough breakdown:
 **Externally derived (~200 lines, ~10%)** — mapped from community sources with attribution:
 - LPP note grid and pad/control mappings → LPP3 Programmer Reference + grahack's M8 LPP recap
 - LPP colour palette index values → LPP3 §7
-- Move hardware CC/note constants → move-anything (bobbydigitales)
+- Move hardware CC/note constants → Move Everything
 - LPP init SysEx → LPP3 §2.1
 - YURS CC/note default assignments → YURS remote script
 - M8 identity SysEx bytes → MIDI 1.0 Universal Device Inquiry spec

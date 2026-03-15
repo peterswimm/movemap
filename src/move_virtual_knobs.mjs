@@ -11,9 +11,8 @@
  *   move_midi_external_send(packet)
  *   move_midi_internal_send(packet)
  *
- * Inspired by the move-anything project by bobbydigitales, which first demonstrated
- * knob CC routing on the Move. CC base values and channel assignments are derived
- * from the Ableton Move manual: https://www.ableton.com/en/move/manual/
+ * CC base values and channel assignments are derived from the Ableton Move manual:
+ * https://www.ableton.com/en/move/manual/
  */
 
 function clamp(value, min, max) {

@@ -9,10 +9,6 @@
  * Bank switching: Shift+Menu cycles through all banks in order.
  * Exit overtake:  Shift+Vol+Jog (host-level shortcut, always works).
  *
- * Inspired by the move-anything project by bobbydigitales, whose work demonstrated
- * that the Move's MIDI protocol was explorable and opened the door for this module.
- * https://github.com/bobbydigitales/move-anything
- *
  * External sources used in this file (links appear once at first use):
  *   [LPP3]    LPP3 Programmer Reference Guide (Focusrite)
  *             https://fael-downloads-prod.focusrite.com/customer/prod/s3fs-public/downloads/LPP3_prog_ref_guide_200415.pdf
