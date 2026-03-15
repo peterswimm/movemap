@@ -18,6 +18,7 @@ mkdir -p "$DIST/config"
 cp "$REPO_ROOT/src/module.json"                "$DIST/"
 cp "$REPO_ROOT/src/ui.mjs"                     "$DIST/"
 cp "$REPO_ROOT/src/move_virtual_knobs.mjs"     "$DIST/"
+cp "$REPO_ROOT/src/params.mjs"                 "$DIST/"
 cp "$REPO_ROOT/src/config/movemap_config.mjs"  "$DIST/config/"
 
 # Create tarball

@@ -35,6 +35,7 @@ import {
 } from './move_virtual_knobs.mjs';
 
 import { movemapConfig } from './config/movemap_config.mjs';
+import { loadParams, getParam, setParam } from './params.mjs';
 
 /* ── Inline helpers ──────────────────────────────────────────────────────── */
 
@@ -461,6 +462,7 @@ function setActiveBank(nextBank) {
 
     activeBank = nextBank;
     setPotBank(nextBank);
+    setParam('activeBank', nextBank);
     resetModifiersForBankSwitch();
 
     // Build a queued transition: clear all LEDs, then redraw new bank
@@ -530,6 +532,7 @@ function updateEncoderValue(currentValue, rawValue) {
 function updateSelectedTrack(index) {
     selectedTrackIndex = clamp(index, 0, 7);
     setPotTrack(selectedTrackIndex);
+    setParam('selectedTrackIndex', selectedTrackIndex);
 }
 
 function updateMovePadsToMatchLpp() {
@@ -880,8 +883,15 @@ function handleAbletonInternalMessage(data) {
 
 globalThis.init = function () {
     console.log("MoveMap: init");
+
+    // Restore persisted state (bank, track selection).
+    loadParams();
+    activeBank = getParam('activeBank', BANK_M8_TRACK);
+    selectedTrackIndex = getParam('selectedTrackIndex', 0);
+    setPotBank(activeBank);
+    setPotTrack(selectedTrackIndex);
+
     // Host has already cleared all LEDs. Draw bank indicator + send LPP init.
-    // Both are single packets — safe to send immediately.
     drawBankIndicator();
     initLPP();
 };
