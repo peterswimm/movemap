@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build tarball
+        run: bash scripts/build.sh
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Update release.json
+        run: |
+          cat > release.json <<EOF
+          {
+            "version": "${{ steps.version.outputs.VERSION }}",
+            "download_url": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/movemap-module.tar.gz"
+          }
+          EOF
+
+      - name: Commit release.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add release.json
+          git commit -m "release: update release.json for ${{ github.ref_name }}"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/movemap-module.tar.gz
+          generate_release_notes: true

@@ -1,0 +1,13 @@
+{
+    "id": "movemap",
+    "name": "MoveMap",
+    "version": "1.0.0",
+    "description": "M8 tracker + Ableton Live dual-mode control surface via YURS",
+    "author": "peterswimm",
+    "ui": "ui.mjs",
+    "api_version": 1,
+    "component_type": "overtake",
+    "capabilities": {
+        "default_forward_channel": -2
+    }
+}
