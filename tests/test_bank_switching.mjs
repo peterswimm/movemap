@@ -4,8 +4,8 @@
  * Run: node tests/test_bank_switching.mjs
  *
  * Tests cover:
- *   1. Shift+Menu while in M8 bank → switches to ABLETON
- *   2. Shift+Menu while in ABLETON → switches to M8_TRACK
+ *   1. Shift+Menu cycles through banks: M8_TRACK → M8_MASTER → M8_FX → ABLETON → M8_TRACK
+ *   2. Shift+Menu ×3 from M8_TRACK reaches ABLETON; one more press wraps back to M8_TRACK
  *   3. Bank switch resets: shiftHeld=false, wheelClicked=false, showingTop=true
  *   4. M8 bank routes external messages to LPP handler (color translation)
  *   5. Ableton bank routes external messages filtered by MIDI channel
@@ -35,14 +35,16 @@ const ABLETON_CH = 15; // yursProfile.midiChannel
 // ── Test suites ───────────────────────────────────────────────────────────────
 
 async function testShiftMenuToAbleton() {
-    console.log('\n--- Shift+Menu: M8 → Ableton ---');
+    console.log('\n--- Shift+Menu ×3: M8_TRACK → ABLETON ---');
     const mock = createHostMock();
     await freshMoveMap();
 
-    // Module starts in M8_TRACK. Apply Shift+Menu.
+    // Module starts in M8_TRACK. Cycle through M8_MASTER → M8_FX → ABLETON.
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127));
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_MASTER
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_FX
     mock.clearAll();
-    globalThis.onMidiMessageInternal(cc(moveMENU, 127));
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → ABLETON
 
     // After switching, external Ableton CC on correct channel should be handled
     mock.clearAll();
@@ -52,18 +54,20 @@ async function testShiftMenuToAbleton() {
 }
 
 async function testShiftMenuToM8() {
-    console.log('\n--- Shift+Menu: Ableton → M8 ---');
+    console.log('\n--- Shift+Menu: ABLETON → M8_TRACK (wrap) ---');
     const mock = createHostMock();
     await freshMoveMap();
 
-    // Switch to Ableton
+    // Cycle to Ableton (×3)
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127));
-    globalThis.onMidiMessageInternal(cc(moveMENU, 127));
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_MASTER
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_FX
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → ABLETON
 
-    // Switch back to M8
+    // One more press wraps back to M8_TRACK
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127));
     mock.clearAll();
-    globalThis.onMidiMessageInternal(cc(moveMENU, 127));
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_TRACK
 
     // After switching back, an M8-style note-on from LPP should route to M8 handler
     // LPP sends note-on 0x90 on channel 0 = 0x90
@@ -73,27 +77,25 @@ async function testShiftMenuToM8() {
     assertTrue(mock.sentInternal.length > 0, 'Ableton→M8: LPP note routed to M8 handler');
 }
 
-async function testBankSwitchResetsModifiers() {
-    console.log('\n--- Bank switch resets modifier state ---');
+async function testBankSwitchPreservesShiftState() {
+    console.log('\n--- Bank switch preserves hardware shift state ---');
     const mock = createHostMock();
     await freshMoveMap();
 
-    // Hold shift before switching
+    // Hold shift, cycle to Ableton. Shift stays held (hardware state is preserved).
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127)); // shiftHeld = true
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_MASTER
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_FX
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → ABLETON
 
-    mock.clearAll();
-    // Switch to Ableton
-    globalThis.onMidiMessageInternal(cc(moveMENU, 127));
+    // Release shift (simulating hardware key release)
+    globalThis.onMidiMessageInternal(cc(moveSHIFT, 0));
 
-    // After switch, shift should be released. Verify by checking that encoder
-    // indicators were updated (which happens on shift reset in Ableton bank)
-    // The bank switch always resets shift to false.
-    // A proxy test: send a volume CC to Ableton external — if shift is off,
-    // knob indicator updates (not sendA-gated)
+    // Now volume CC from Ableton should update the knob indicator (shift off)
     mock.clearAll();
     globalThis.onMidiMessageExternal(extCC(ABLETON_CH, 0, 50));
     const knobUpdate = mock.sentInternal.filter(p => p[1] === 0xb0 && p[2] === 71);
-    assertTrue(knobUpdate.length > 0, 'after bank switch: shift reset, volume CC updates knob');
+    assertTrue(knobUpdate.length > 0, 'after shift release: volume CC updates knob indicator');
 }
 
 async function testM8BankColorTranslation() {
@@ -117,9 +119,12 @@ async function testAbletonBankChannelFilter() {
     const mock = createHostMock();
     await freshMoveMap();
 
-    // Switch to Ableton
+    // Cycle to Ableton (×3), then release shift
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127));
-    globalThis.onMidiMessageInternal(cc(moveMENU, 127));
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_MASTER
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_FX
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → ABLETON
+    globalThis.onMidiMessageInternal(cc(moveSHIFT, 0));  // release shift
 
     // Message on correct channel should be handled
     mock.clearAll();
@@ -142,9 +147,11 @@ async function testShiftTrackedBothBanks() {
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 0));
     assertEqual(1, 1, 'M8 bank: shift CC does not throw');
 
-    // Switch to Ableton bank
+    // Cycle to Ableton bank (×3)
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127));
-    globalThis.onMidiMessageInternal(cc(moveMENU, 127));
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_MASTER
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_FX
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → ABLETON
 
     // In Ableton bank: shift press and release don't crash; encoder indicators update
     mock.clearAll();
@@ -161,9 +168,11 @@ async function testEncoderIndicatorsOnShift() {
     const mock = createHostMock();
     await freshMoveMap();
 
-    // Switch to Ableton
+    // Cycle to Ableton (×3)
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127));
-    globalThis.onMidiMessageInternal(cc(moveMENU, 127));
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_MASTER
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → M8_FX
+    globalThis.onMidiMessageInternal(cc(moveMENU, 127)); // → ABLETON
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 0)); // shift off
 
     // Load some sendA values via external CC so we can verify they show up on shift
@@ -183,7 +192,7 @@ const mock = createHostMock();
 
 await testShiftMenuToAbleton();
 await testShiftMenuToM8();
-await testBankSwitchResetsModifiers();
+await testBankSwitchPreservesShiftState();
 await testM8BankColorTranslation();
 await testAbletonBankChannelFilter();
 await testShiftTrackedBothBanks();

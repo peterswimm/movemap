@@ -3,9 +3,10 @@
  *
  * Banks:
  *   M8 Track, M8 Master, M8 FX  — control the Dirtywave M8 via LPP protocol
+ *   Custom device banks          — CC knob banks built with scripts/browse_devices.mjs
  *   Ableton (YURS)               — mixer / device control via YURS remote script
  *
- * Bank switching: Shift+Menu toggles between M8 Track and Ableton banks.
+ * Bank switching: Shift+Menu cycles through all banks in order.
  * Exit overtake:  Shift+Vol+Jog (host-level shortcut, always works).
  *
  * Inspired by the move-anything project by bobbydigitales, whose work demonstrated
@@ -26,6 +27,7 @@
 
 import {
     handleMoveKnobs,
+    getPotValue,
     setPotBank,
     setPotTrack,
     setTrackScopedPots,
@@ -192,6 +194,42 @@ function isM8Bank(bank) {
     return bank === BANK_M8_TRACK || bank === BANK_M8_MASTER || bank === BANK_M8_FX;
 }
 
+/* ── Custom device banks ─────────────────────────────────────────────────── */
+
+const CUSTOM_BANKS_PATH = '/data/UserData/move-anything/modules/movemap/config/custom_banks.json';
+
+let customBanks = [];
+
+function loadCustomBanks() {
+    try {
+        const raw = typeof host_read_file !== 'undefined' ? host_read_file(CUSTOM_BANKS_PATH) : null;
+        if (raw) customBanks = JSON.parse(raw);
+    } catch (_) {
+        customBanks = [];
+    }
+    for (const bank of customBanks) {
+        configurePotBank(bank.id, {
+            channel: bank.channel,
+            volumeCcs: bank.knobs.map(k => k.cc),
+        });
+    }
+}
+
+function isCustomBank(bank) {
+    return customBanks.some(b => b.id === bank);
+}
+
+function getCustomBank(bank) {
+    return customBanks.find(b => b.id === bank) ?? null;
+}
+
+// Built after loadCustomBanks() — fixed banks first, then custom, then ABLETON at end.
+let BANK_ORDER = [BANK_M8_TRACK, BANK_M8_MASTER, BANK_M8_FX, BANK_ABLETON];
+
+function buildBankOrder() {
+    BANK_ORDER = [BANK_M8_TRACK, BANK_M8_MASTER, BANK_M8_FX, ...customBanks.map(b => b.id), BANK_ABLETON];
+}
+
 /* ── Move grid layout ────────────────────────────────────────────────────── */
 
 const moveGridRows = [
@@ -255,6 +293,15 @@ let currentView       = moveBACK;
 let wheelClicked      = false;
 let abletonMacroValues = new Array(8).fill(0);
 let sysexBuffer       = [];
+
+// Track → custom bank bindings: { "0": "juno-60", "1": "dx7", ... }
+let trackBankBindings = {};
+
+// Knob value overlay: set when a knob is touched or turned in a custom bank.
+// { potIndex, clearAt } — clearAt is a tick count after which overlay redraws the label grid.
+let knobOverlay = null;
+let tickCount   = 0;
+const OVERLAY_TICKS = 88; // ~2 seconds at 44 ticks/sec
 
 setPotBank(activeBank);
 
@@ -367,10 +414,51 @@ function drawAbletonMacroDisplay() {
     }
 }
 
+function drawCustomBankDisplay() {
+    const bank = getCustomBank(activeBank);
+    if (!bank) return;
+    if (typeof clear_screen !== 'function' || typeof print !== 'function') return;
+    clear_screen();
+    // Line 0: bank name + channel
+    print(0, 0, `${bank.name.slice(0, 12)}  ch${bank.channel + 1}`, 1);
+    // Lines 1-4: knob labels in 2-column layout  (label truncated to 8 chars)
+    for (let i = 0; i < bank.knobs.length && i < 8; i++) {
+        const row = Math.floor(i / 2);
+        const col = i % 2;
+        print(col * 64, 10 + row * 13, `${i + 1}:${bank.knobs[i].label}`, 1);
+    }
+    // Knob 9 (index 8) on its own line if present
+    if (bank.knobs.length >= 9) {
+        print(0, 10 + 4 * 13, `9:${bank.knobs[8].label}`, 1);
+    }
+}
+
+function showKnobOverlay(potIndex) {
+    knobOverlay = { potIndex, clearAt: tickCount + OVERLAY_TICKS };
+    const bank = getCustomBank(activeBank);
+    if (!bank || typeof clear_screen !== 'function' || typeof print !== 'function') return;
+    const knob = bank.knobs[potIndex];
+    if (!knob) return;
+    const value = getPotValue(activeBank, potIndex);
+    clear_screen();
+    print(0, 0, bank.name.slice(0, 12), 1);
+    print(0, 20, knob.label, 1);
+    // Value bar: fill proportional to value/127 across 120px
+    const barW = Math.round((value / 127) * 120);
+    if (typeof fill_rect === 'function') {
+        fill_rect(0, 40, barW, 8, 1);
+        fill_rect(barW, 40, 120 - barW, 8, 0);
+    }
+    print(0, 52, `CC${knob.cc}  ${value}`, 1);
+}
+
 /* ── LED draw functions ──────────────────────────────────────────────────── */
 
 function drawBankIndicator() {
-    const color = isM8Bank(activeBank) ? abletonColors.bankM8 : abletonColors.bankAbleton;
+    let color;
+    if (isM8Bank(activeBank))   color = abletonColors.bankM8;
+    else if (isCustomBank(activeBank)) color = lime;
+    else                        color = abletonColors.bankAbleton;
     sendMovePad(bankIndicatorNote, color);
 }
 
@@ -449,10 +537,11 @@ function releaseM8Shift() {
 }
 
 function resetModifiersForBankSwitch() {
-    shiftHeld    = false;
+    // Don't reset shiftHeld — hardware Shift state is tracked by CC 49 events.
+    // If the user is holding Shift while cycling banks, it stays held.
     wheelClicked = false;
     showingTop   = true;
-    setPotShiftHeld(false);
+    setPotShiftHeld(shiftHeld);
 }
 
 function setActiveBank(nextBank) {
@@ -471,6 +560,11 @@ function setActiveBank(nextBank) {
     if (isM8Bank(activeBank)) {
         ledQueue.push(() => initLPP());
         buildM8BankQueue();
+    } else if (isCustomBank(activeBank)) {
+        ledQueue.push(() => {
+            drawCustomBankDisplay();
+            drawBankIndicator();
+        });
     } else {
         ledQueue.push(() => {
             abletonDeviceMode = false;
@@ -479,7 +573,53 @@ function setActiveBank(nextBank) {
         buildAbletonBankQueue();
     }
 
+    knobOverlay = null; // clear any value overlay on bank change
     console.log(`MoveMap: active bank → ${activeBank}`);
+}
+
+/* ── Track-bank bindings ─────────────────────────────────────────────────── */
+
+function bindTrackToCurrentBank(trackIndex) {
+    const key = String(trackIndex);
+    if (trackBankBindings[key] === activeBank) {
+        // Toggle: unbind
+        delete trackBankBindings[key];
+        setParam('trackBankBindings', JSON.stringify(trackBankBindings));
+        showBindingFeedback(trackIndex, null);
+    } else {
+        trackBankBindings[key] = activeBank;
+        setParam('trackBankBindings', JSON.stringify(trackBankBindings));
+        showBindingFeedback(trackIndex, activeBank);
+    }
+}
+
+function showBindingFeedback(trackIndex, bankId) {
+    if (typeof clear_screen !== 'function' || typeof print !== 'function') return;
+    knobOverlay = { potIndex: -1, clearAt: tickCount + OVERLAY_TICKS };
+    clear_screen();
+    if (bankId) {
+        const bank = getCustomBank(bankId);
+        print(0, 0,  'Bound', 1);
+        print(0, 16, `T${trackIndex + 1} → ${bank ? bank.name.slice(0, 10) : bankId}`, 1);
+    } else {
+        print(0, 0,  'Unbound', 1);
+        print(0, 16, `T${trackIndex + 1}`, 1);
+    }
+}
+
+// Called when track selection changes (Ableton bank or custom bank).
+// Auto-switches to the bound custom bank if one exists.
+function onTrackSelected(trackIndex) {
+    selectedTrackIndex = trackIndex;
+    setPotTrack(trackIndex);
+    setParam('selectedTrackIndex', trackIndex);
+
+    if (isM8Bank(activeBank)) return; // never auto-switch out of M8 mode
+
+    const bound = trackBankBindings[String(trackIndex)];
+    if (bound && bound !== activeBank && BANK_ORDER.includes(bound)) {
+        setActiveBank(bound);
+    }
 }
 
 /* ── Ableton device mode ─────────────────────────────────────────────────── */
@@ -530,9 +670,7 @@ function updateEncoderValue(currentValue, rawValue) {
 }
 
 function updateSelectedTrack(index) {
-    selectedTrackIndex = clamp(index, 0, 7);
-    setPotTrack(selectedTrackIndex);
-    setParam('selectedTrackIndex', selectedTrackIndex);
+    onTrackSelected(clamp(index, 0, 7));
 }
 
 function updateMovePadsToMatchLpp() {
@@ -884,28 +1022,44 @@ function handleAbletonInternalMessage(data) {
 globalThis.init = function () {
     console.log("MoveMap: init");
 
+    // Load custom device banks before restoring state (persisted bank may be a custom ID).
+    loadCustomBanks();
+    buildBankOrder();
+
     // Restore persisted state (bank, track selection).
     loadParams();
-    activeBank = getParam('activeBank', BANK_M8_TRACK);
+    const savedBank = getParam('activeBank', BANK_M8_TRACK);
+    // Validate: if a saved custom bank was removed, fall back to M8_TRACK.
+    activeBank = BANK_ORDER.includes(savedBank) ? savedBank : BANK_M8_TRACK;
     selectedTrackIndex = getParam('selectedTrackIndex', 0);
     setPotBank(activeBank);
     setPotTrack(selectedTrackIndex);
 
-    // Host has already cleared all LEDs. Draw bank indicator + send LPP init.
+    // Host has already cleared all LEDs. Draw the current bank.
     drawBankIndicator();
-    initLPP();
+    if (isCustomBank(activeBank)) {
+        drawCustomBankDisplay();
+    } else {
+        initLPP();
+    }
 };
 
 globalThis.tick = function () {
+    tickCount++;
     if (ledQueue.length > 0) {
         drainLedQueue();
+    }
+    // Clear knob overlay when timer expires
+    if (knobOverlay && tickCount >= knobOverlay.clearAt) {
+        knobOverlay = null;
+        if (isCustomBank(activeBank)) drawCustomBankDisplay();
     }
 };
 
 globalThis.onMidiMessageExternal = function (data) {
     if (isM8Bank(activeBank)) {
         handleM8ExternalMessage(data);
-    } else {
+    } else if (!isCustomBank(activeBank)) {
         handleAbletonExternalMessage(data);
     }
 };
@@ -928,15 +1082,42 @@ globalThis.onMidiMessageInternal = function (data) {
         return;
     }
 
-    // Shift+Menu → toggle M8 ↔ Ableton bank
+    // Shift+Menu → cycle through all banks in order
     if (isCC && data[1] === moveMENU && data[2] === 0x7f && shiftHeld) {
-        const nextBank = activeBank === BANK_ABLETON ? BANK_M8_TRACK : BANK_ABLETON;
+        const idx = BANK_ORDER.indexOf(activeBank);
+        const nextBank = BANK_ORDER[(idx + 1) % BANK_ORDER.length];
         setActiveBank(nextBank);
         return;
     }
 
     if (isM8Bank(activeBank)) {
         handleM8InternalMessage(data);
+        return;
+    }
+
+    if (isCustomBank(activeBank)) {
+        if (isCC) {
+            // Track buttons (CC 40–43, reversed: CC43=T1 CC40=T4)
+            const trackCCs = [43, 42, 41, 40];
+            const tIdx = trackCCs.indexOf(data[1]);
+            if (tIdx !== -1 && data[2] === 0x7f) {
+                if (shiftHeld) {
+                    bindTrackToCurrentBank(tIdx);
+                } else {
+                    onTrackSelected(tIdx);
+                }
+                return;
+            }
+            // Knob turn → send CC + show value overlay
+            const result = handleMoveKnobs(data, { activeBank });
+            if (result && result.handled) {
+                showKnobOverlay(result.potIndex);
+            }
+        }
+        // Knob capacitive touch (notes 0–8) → show current value overlay
+        if (isNote && data[0] === 0x90 && data[1] >= 0 && data[1] <= 8) {
+            showKnobOverlay(data[1]);
+        }
         return;
     }
 

@@ -46,10 +46,14 @@ const muteRow = [92, 93, 94, 95, 96, 97, 98, 99];
 const soloRow = [84, 85, 86, 87, 88, 89, 90, 91];
 const armRow  = [76, 77, 78, 79, 80, 81, 82, 83];
 
-// Switch to Ableton bank: Shift held, then Shift+Menu
+// Switch to Ableton bank: Shift held, Shift+Menu ×3, then release Shift
+// (cycle order: M8_TRACK → M8_MASTER → M8_FX → ABLETON)
 async function switchToAbletonBank() {
     globalThis.onMidiMessageInternal(cc(moveSHIFT, 127)); // shiftHeld = true
-    globalThis.onMidiMessageInternal(cc(50, 127));         // Shift+Menu → ABLETON
+    globalThis.onMidiMessageInternal(cc(50, 127));         // → M8_MASTER
+    globalThis.onMidiMessageInternal(cc(50, 127));         // → M8_FX
+    globalThis.onMidiMessageInternal(cc(50, 127));         // → ABLETON
+    globalThis.onMidiMessageInternal(cc(moveSHIFT, 0));   // release shift
 }
 
 // ── Test suites ───────────────────────────────────────────────────────────────

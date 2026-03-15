@@ -11,6 +11,10 @@
  */
 
 export const movemapConfig = {
+    // Set to true if you have a Dirtywave M8 connected via Move's USB-A port.
+    // When false, M8 banks are hidden from the Shift+Menu cycle.
+    m8Enabled: false,
+
     // CC/note map for Ableton/YURS bank.
     // Channel 16 (index 15) is the YURS default control channel.
     yursProfile: {

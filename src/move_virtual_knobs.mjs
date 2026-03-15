@@ -92,6 +92,10 @@ export function setPotShiftHeld(enabled) {
 
 export function configurePotBank(bank, overrides = {}) {
     if (!potConfig[bank]) {
+        // New dynamic bank (e.g. custom device bank) — register from scratch.
+        const potCount = overrides.volumeCcs ? overrides.volumeCcs.length : (overrides.potCount ?? 9);
+        potConfig[bank] = { ccBase: 71, potCount, channel: 0, internalEcho: false, ...overrides };
+        potValues[bank] = [Array(potCount).fill(0)];
         return;
     }
     potConfig[bank] = { ...potConfig[bank], ...overrides };
@@ -246,5 +250,27 @@ export function handleMoveKnobs(data, options = {}) {
         return handleAbletonBank(potIndex, value, { shiftHeld: shiftOverride });
     }
 
+    // Dynamic custom bank: routes each knob to the CC defined in volumeCcs.
+    const customConfig = potConfig[activeBank];
+    if (customConfig && customConfig.volumeCcs) {
+        const ccs = customConfig.volumeCcs;
+        if (potIndex < ccs.length) {
+            const nextValue = nextPotValue(activeBank, potIndex, value);
+            sendCc(customConfig.channel ?? 0, ccs[potIndex], nextValue, false);
+            return { handled: true, bank: activeBank, potIndex, cc: ccs[potIndex], value: nextValue };
+        }
+    }
+
     return false;
+}
+
+/**
+ * Get the last-sent value for a pot in the given bank.
+ * Returns 0 if the bank or pot index is unknown.
+ */
+export function getPotValue(bank, potIndex) {
+    const track = potValues[bank];
+    if (!track) return 0;
+    const row = track[0] ?? [];
+    return row[potIndex] ?? 0;
 }

@@ -124,6 +124,31 @@ Open [config/movemap_config.mjs](config/movemap_config.mjs) to adjust:
 - `notes` / `ccs` — remap YURS note and CC assignments
 - `clipWarningThreshold` — volume level (0–127) at which mute LED turns amber (default 118)
 
+## Custom Device Banks
+
+MoveMap can control any MIDI device via custom knob banks. Banks are built on your Mac using a terminal browser that pulls CC definitions from the [pencilresearch/midi](https://github.com/pencilresearch/midi) community database (100+ devices, 90+ manufacturers).
+
+```bash
+node scripts/browse_devices.mjs
+```
+
+The tool walks you through:
+1. Pick a manufacturer (e.g. Roland)
+2. Pick a device (e.g. JUNO-60)
+3. Browse CC parameters grouped by section — pick up to 9 for knobs
+4. Name the bank and set the MIDI channel
+5. Entry is saved to `src/config/custom_banks.json`
+
+Then rebuild and deploy:
+```bash
+bash scripts/build.sh
+bash scripts/install.sh
+```
+
+On the device, Shift+Menu cycles through all banks in order: M8 Track → M8 Master → M8 FX → [custom banks] → Ableton. The display shows the device name, channel, and knob labels. Custom banks appear with a green indicator LED.
+
+You can add as many banks as you like. Edit `src/config/custom_banks.json` by hand to adjust labels, CC numbers, or ranges.
+
 ## Acknowledgements
 
 MoveMap was built on the work of many people in the Move, M8, and Ableton communities.
@@ -153,6 +178,10 @@ Hardware and MIDI specifications from the official Ableton Move manual:
 
 The Ableton Live integration uses the YURS (Yaeltex Universal Remote Script) protocol.
 [YURS on the Yaeltex forum](https://forum.yaeltex.com/t/yurs-yaeltex-universal-remote-script-for-ableton-live/161)
+
+### Device CC Database
+
+Custom device banks are built from the [pencilresearch/midi](https://github.com/pencilresearch/midi) community database — a crowdsourced collection of MIDI CC and NRPN definitions for 100+ devices across 90+ manufacturers. Licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
 ### LPP3 Programming Reference
 
