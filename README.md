@@ -192,44 +192,54 @@ Focusrite's Launchpad Pro Mk3 programming reference guided the SysEx handshake a
 
 ### Design philosophy
 
-I build projects like this with one guiding constraint: **maximum attribution, minimum erasure**. Every piece of borrowed logic gets a named source. Every mapping table that came from someone else's research gets a link. The goal is that anyone reading this code can trace every non-trivial decision back to its origin — whether that's a hardware spec, a community forum post, a fellow developer's reverse-engineering work, or an AI session.
+I build projects like this with one constraint: **maximum attribution, minimum erasure**. Every piece of borrowed logic gets a named source. Every mapping table that came from someone else's research gets a link. The goal is that anyone reading this code can trace every non-trivial decision back to its origin — a hardware spec, a forum post, a fellow developer's reverse-engineering work, or an AI session.
 
-I do use AI, and I don't hide it. Claude helped port this from a single-file control script into a module, wrote the test harness, caught several bugs in the master knob indexing, cleaned up closure captures, and authored most of this documentation. That's real work and it would be dishonest to omit it. But the architecture decisions, the hardware knowledge, the M8 workflow, and the final review are mine. AI is a tool in this shop, not a ghost author.
+I use AI and I don't hide it. Claude helped port this from a single-file control script into a standalone module, wrote the test harness, designed the custom bank architecture, caught bugs in the master knob indexing, and authored most of this documentation across multiple sessions. That's real work and it would be dishonest to omit it. The architecture decisions, the hardware knowledge, the M8 workflow, the integration choices, and the final review are mine. AI is a collaborator in this shop, not a ghost author.
 
 The test harness exists precisely because of AI-assisted development: when you're moving fast with an LLM, you need a safety net that doesn't require flashing firmware to find out you broke something.
 
+### On association and removal
+
+Some contributors to the broader ecosystem this module depends on did not want to be associated with this project or with my work. I have respected that and removed their names where they asked. That is their right, full stop. I hold no grievance about it. If you are one of those people and something still appears here that shouldn't, tell me and I'll fix it immediately.
+
+I welcome all feedback — including the kind that says I got something wrong, gave credit incorrectly, made poor decisions, or just generally missed the mark. That includes feedback that's blunt or unkind. I'd rather know.
+
 ### Provenance
 
-This module is approximately **~1,500 lines** across all files. Rough breakdown:
+This module is approximately **~2,000 lines** across all files. Rough breakdown:
 
-**Externally derived (~200 lines, ~13%)** — mapped from community sources with attribution:
+**Externally derived (~200 lines, ~10%)** — mapped from community sources with attribution:
 - LPP note grid and pad/control mappings → LPP3 Programmer Reference + grahack's M8 LPP recap
 - LPP colour palette index values → LPP3 §7
 - Move hardware CC/note constants → move-anything (bobbydigitales)
 - LPP init SysEx → LPP3 §2.1
 - YURS CC/note default assignments → YURS remote script
 - M8 identity SysEx bytes → MIDI 1.0 Universal Device Inquiry spec
+- Device CC definitions → pencilresearch/midi community database (CC BY-SA 4.0)
 
-**Novel / authored (~1,300 lines, ~87%):**
-- Multi-bank virtual knobs architecture: `configurePotBank`, track-scoped routing, per-bank isolated state
+**Novel / authored (~1,800 lines, ~90%):**
+- Multi-bank virtual knobs architecture: dynamic bank registration, track-scoped routing, per-bank isolated state
+- Custom device banks: `browse_devices.mjs` desktop browser, `custom_banks.json` schema, runtime loading and display
+- Track-bank bindings: on-device Shift+track assignment, auto-switch on track select, persisted to device storage
+- Knob value overlay: capacitive touch and turn detection showing live CC value and bar graph on the 128×64 display
 - Progressive LED queue: bank transition animations within Move's 64-packet buffer constraint
 - Ableton mixer state machine: mute/solo/arm toggles, volume/send/master LED feedback from Live
 - YURS integration: CC and note routing in both directions, clip warning threshold
 - Device macro mode: knob-to-macro CC bridging with display
 - SysEx accumulator: reassembling QuickJS's 3-byte sysex slices into complete messages
-- Full JS unit test harness: host mock, assert library, 43 tests, pre-deploy install gate
-- Module lifecycle, shift-modifier handling, bank switching with clean LED transitions
+- Parameter persistence layer: `params.mjs` designed for trivial 2.0 migration
+- Full JS unit test harness: host mock, assert library, 105 tests, pre-deploy install gate
 
 **Token economics (honest ballpark):**
 
-This session — porting the control script, architecture review, 7 bug fixes, README, and attribution comments — ran approximately 300–500K input tokens and 60–100K output tokens on Claude Sonnet. Rough cost: $15–40.
+Multiple sessions across the lifetime of this module — initial port, M8 integration, standalone extraction, custom bank architecture, track bindings, and display overlays — ran somewhere in the range of 1–2M input tokens and 200–400K output tokens on Claude Sonnet. Rough total cost: $60–150.
 
-The Toilville system made this materially cheaper and faster. The `CLAUDE.md` project context file (Move hardware API surface, deployment constraints, module architecture conventions) avoided re-explaining the same scaffolding on every turn — estimated savings of 30–50% of context overhead per session. The inline attribution comments we added to the source code will compound those savings in future sessions by embedding provenance directly where the code lives, so no future Claude session needs to rediscover what the LPP color palette index keys mean. And the test harness replaces manual hardware verification cycles whose real cost — SSH, firmware flash, physical device, debug log tailing — is orders of magnitude higher than any token cost.
+The `CLAUDE.md` project context file (Move hardware API surface, deployment constraints, module architecture conventions) avoided re-explaining the same scaffolding on every turn. The inline attribution comments embed provenance directly where the code lives, so future sessions don't rediscover what the LPP color palette index keys mean. The test harness replaces manual hardware verification whose real cost — SSH, firmware flash, physical device, debug log tailing — is orders of magnitude higher than any token cost.
 
 ### Release
 
 This module is released under the same terms as the move-everything repository. See the project root for the license.
 
-The spirit of that release is straightforward: I have benefited enormously from the open work of others — REDACTED mapping the Move's hardware, grahack documenting the M8's LPP layout, the YURS authors building a scriptable Live bridge, the Focusrite team publishing their programmer reference. None of that work was owed to me and all of it made this possible. Releasing this back under the same terms is the only appropriate response.
+I have benefited enormously from the open work of others — the contributors who mapped the Move's hardware, grahack documenting the M8's LPP layout, the YURS authors building a scriptable Live bridge, the Focusrite team publishing their programmer reference, the pencilresearch/midi contributors building a CC database that makes custom device banks possible. None of that work was owed to me and all of it made this possible. Releasing this back under the same terms is the only appropriate response.
 
 If this module saves you time, helps you understand the protocol, or gives you something to fork — that's the point. Attribution is appreciated but not required. Improvement is welcomed. Pay it forward when you can.
