@@ -178,6 +178,21 @@ The display shows `NKS  [1/4]` and updates the knob labels as you page through. 
 
 > The NKS bank uses channel 16 (index 15 in zero-indexed MIDI). Ensure your Komplete Kontrol NKS input is set to the same channel. The parameter labels (Param1–8) are placeholders — Komplete Kontrol supplies the real parameter names via its own display.
 
+## Roadmap
+
+- [x] Extract `midi_utils.mjs` — pure MIDI infrastructure, no runtime coupling
+- [x] Remove all `move-anything` path references from source
+- [x] `movemap-runner` initial JACK client scaffolding (builds clean)
+- [x] Internal/external MIDI split with Source tagging
+- [x] USB hub hot-plug via JACK notification handler
+- [x] M8 audio bridge (RT callback, no JS)
+- [x] `runner.json` config for port names
+- [ ] SSH into Move, run `jack_lsp` — verify real JACK port names and update `runner.json` defaults
+- [ ] Cross-compile `movemap-runner` for ARM Linux (`aarch64-unknown-linux-gnu`)
+- [ ] Deploy to Move in RNBO Takeover mode and smoke test
+- [ ] Startup service (systemd or RNBO Takeover hook)
+- [ ] External MIDI in port for RNBO-originated messages
+
 ## Acknowledgements
 
 MoveMap was built on the work of many people in the Move, M8, and Ableton communities.
