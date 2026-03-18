@@ -27,11 +27,13 @@ MoveMap takes over the Move's full UI in shadow mode. It maps Move's pads, knobs
 
 ## Requirements
 
-- [Move Everything](https://github.com/charlesvestal/move-everything) host installed on your Ableton Move
+- **[movemap-runner](../movemap-runner)** — the JACK client host that loads this module on the Move (see that repo for build and deploy instructions)
 - Dirtywave M8 (for M8 mode) connected to Move's USB-A port
 - [YURS remote script](https://forum.yaeltex.com/t/yurs-yaeltex-universal-remote-script-for-ableton-live/161) installed in Ableton Live (for Ableton Live mode)
   - Configure YURS input/output to the Move's USB MIDI port
   - YURS MIDI channel: **16** (channel index 15)
+
+> **Runtime note:** MoveMap targets [RNBO Takeover mode](https://rnbo.cycling74.com/learn/move-intro-and-setup) on the Move. The JS module layer is runtime-agnostic — no dependency on move-anything or move-everything in source. The movemap-runner is a native JACK client that loads this module alongside the RNBO Runner.
 
 ## Controls
 
@@ -136,8 +138,9 @@ The tool walks you through:
 1. Pick a manufacturer (e.g. Roland)
 2. Pick a device (e.g. JUNO-60)
 3. Browse CC parameters grouped by section — pick up to 9 for knobs
-4. Name the bank and set the MIDI channel
-5. Entry is saved to `src/config/custom_banks.json`
+4. Optionally add more pages (each page is another 8 knobs)
+5. Name the bank and set the MIDI channel
+6. Entry is saved to `src/config/custom_banks.json`
 
 Then rebuild and deploy:
 ```bash
@@ -147,16 +150,42 @@ bash scripts/install.sh
 
 On the device, Shift+Menu cycles through all banks in order: M8 Track → M8 Master → M8 FX → [custom banks] → Ableton. The display shows the device name, channel, and knob labels. Custom banks appear with a green indicator LED.
 
+**Multi-page banks**: When a bank has multiple pages, the display shows a `[N/T]` page indicator instead of the channel number. **Shift+Jog click** advances to the next page. Knob labels and CC routing update immediately.
+
 You can add as many banks as you like. Edit `src/config/custom_banks.json` by hand to adjust labels, CC numbers, or ranges.
+
+## NKS / Komplete Kontrol
+
+MoveMap ships with a pre-built **NKS bank** that makes the Move behave like a Novation Launchkey to Komplete Kontrol. NKS is not a separate protocol — at the wire it is standard MIDI CC. The Launchkey MK3's NKS template sends CC 21–28 on channel 16; MoveMap's NKS bank replicates this across 4 pages of 8 knobs (32 parameters total).
+
+### Setup
+
+1. In Komplete Kontrol → **Settings → MIDI**:
+   - Add the Move's USB MIDI port as a **MIDI input**
+   - Set the NKS controller template to **channel 16** (or configure a custom template for CC 21–28 on ch 16)
+
+2. In MoveMap, use **Shift+Menu** to cycle to the **NKS** bank.
+
+3. Knobs 1–8 send CC 21–28 on channel 16. Komplete Kontrol maps these to the first 8 parameters of the loaded plugin automatically.
+
+4. Use **Shift+Jog click** to advance pages:
+   - Page 1: CC 21–28 (parameters 1–8)
+   - Page 2: CC 29–36 (parameters 9–16)
+   - Page 3: CC 37–44 (parameters 17–24)
+   - Page 4: CC 45–52 (parameters 25–32)
+
+The display shows `NKS  [1/4]` and updates the knob labels as you page through. Touch a knob to see its current value.
+
+> The NKS bank uses channel 16 (index 15 in zero-indexed MIDI). Ensure your Komplete Kontrol NKS input is set to the same channel. The parameter labels (Param1–8) are placeholders — Komplete Kontrol supplies the real parameter names via its own display.
 
 ## Acknowledgements
 
 MoveMap was built on the work of many people in the Move, M8, and Ableton communities.
 
-### Move Everything
+### RNBO / Cycling '74
 
-The host runtime this module runs on. Thanks to every contributor who built the open ecosystem that makes Move modules possible:
-[github.com/charlesvestal/move-everything](https://github.com/charlesvestal/move-everything)
+MoveMap targets the RNBO Takeover ecosystem on Ableton Move. The RNBO Runner, JACK2 fork, and Move control templates are Cycling '74's work and what makes a stable, update-resilient foundation possible:
+[cycling74.com/products/rnbo/move](https://cycling74.com/products/rnbo/move)
 
 ### Dirtywave M8
 
@@ -207,18 +236,19 @@ I welcome all feedback — including the kind that says I got something wrong, g
 
 ### Provenance
 
-This module is approximately **~2,000 lines** across all files. Rough breakdown:
+This module is approximately **~1,850 lines** of JS across all source files, plus a companion Rust JACK runner. Rough breakdown:
 
-**Externally derived (~200 lines, ~10%)** — mapped from community sources with attribution:
+**Externally derived (~200 lines, ~11%)** — mapped from community sources with attribution:
 - LPP note grid and pad/control mappings → LPP3 Programmer Reference + grahack's M8 LPP recap
 - LPP colour palette index values → LPP3 §7
-- Move hardware CC/note constants → Move Everything
+- Move hardware CC/note constants → Ableton Move Manual
 - LPP init SysEx → LPP3 §2.1
 - YURS CC/note default assignments → YURS remote script
 - M8 identity SysEx bytes → MIDI 1.0 Universal Device Inquiry spec
 - Device CC definitions → pencilresearch/midi community database (CC BY-SA 4.0)
 
-**Novel / authored (~1,800 lines, ~90%):**
+**Novel / authored (~1,650 lines, ~89%):**
+- `midi_utils.mjs` — extracted pure MIDI infrastructure layer (constants, maps, color palette, send helpers, delta decoder); no business logic, no runtime coupling
 - Multi-bank virtual knobs architecture: dynamic bank registration, track-scoped routing, per-bank isolated state
 - Custom device banks: `browse_devices.mjs` desktop browser, `custom_banks.json` schema, runtime loading and display
 - Track-bank bindings: on-device Shift+track assignment, auto-switch on track select, persisted to device storage
@@ -228,7 +258,7 @@ This module is approximately **~2,000 lines** across all files. Rough breakdown:
 - YURS integration: CC and note routing in both directions, clip warning threshold
 - Device macro mode: knob-to-macro CC bridging with display
 - SysEx accumulator: reassembling QuickJS's 3-byte sysex slices into complete messages
-- Parameter persistence layer: `params.mjs` designed for trivial 2.0 migration
+- Parameter persistence layer: `params.mjs` — runtime-agnostic, paths owned by movemap not by any host
 - Full JS unit test harness: host mock, assert library, 105 tests, pre-deploy install gate
 
 **Token economics (honest ballpark):**

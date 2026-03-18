@@ -1,24 +1,18 @@
 /*
  * MoveMap — parameter persistence layer
  *
- * Today (1.x): reads/writes a JSON file on the device using host_read_file /
- * host_write_file. State is stored at STATE_PATH on the Move's data partition.
+ * Reads/writes a JSON file on the device using host_read_file / host_write_file.
+ * State is stored at STATE_PATH on the Move's data partition.
  *
- * 2.0 migration: when Move Everything 2.0 ships with params.json support,
- * replace the three exported functions with:
+ * host_read_file / host_write_file are injected by the movemap-runner at runtime.
+ * In Node.js tests these globals are absent — state stays empty, which is correct.
  *
- *   export function loadParams() {}  // framework restores automatically
- *   export function getParam(key, fallback) { return host_module_get_param(key) ?? fallback; }
- *   export function setParam(key, value) { host_module_set_param(key, String(value)); }
- *
- * Nothing else in the module needs to change.
- *
- * Declared params (matches what params.json will declare in 2.0):
+ * Declared params:
  *   activeBank         — enum: M8_TRACK | M8_MASTER | M8_FX | ABLETON
  *   selectedTrackIndex — int: 0–7
  */
 
-const STATE_PATH = '/data/UserData/move-anything/modules/movemap/state.json';
+const STATE_PATH = '/data/UserData/movemap/state.json';
 
 let _state = {};
 

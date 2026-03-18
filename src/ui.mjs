@@ -35,149 +35,21 @@ import {
 import { movemapConfig } from './config/movemap_config.mjs';
 import { loadParams, getParam, setParam } from './params.mjs';
 
-/* ── Inline helpers ──────────────────────────────────────────────────────── */
-
-function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
-}
-
-function clampMidi(value) {
-    return clamp(value, 0, 127);
-}
-
-// Poly aftertouch → modwheel on external channel 3
-function aftertouchToModwheel(data, channel = 3) {
-    if (data[0] !== 0xa0) return false;
-    move_midi_external_send([(2 << 4) | 0xb, 0xb0 | channel, 1, data[2]]);
-    return true;
-}
-
-/* ── LPP note grid ───────────────────────────────────────────────────────── */
-// Source: [LPP3] §4 — standard 10×10 Launchpad Pro note layout.
-// The M8 uses this layout to address its display cells over USB MIDI.
-// See also [M8-LPP] for the M8-specific mapping on top of this grid.
-
-const lppNotes = [
-    90, 91, 92, 93, 94, 95, 96, 97, 98, 99,
-    80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
-    70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-    60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
-    50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-    40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
-    30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
-    20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-    10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-    101, 102, 103, 104, 105, 106, 107, 108,
-    1, 2, 3, 4, 5, 6, 7, 8
-];
-
-const lppNoteValueMap = new Map([...lppNotes.map((a) => [a, [0, 0, 0]])]);
-
-/* ── Move ↔ LPP control mappings ────────────────────────────────────────── */
-// Source: [M8-LPP] — maps Move hardware button/encoder CCs to LPP note numbers
-// as expected by the M8's control surface mode. Two layouts exist because Move
-// has 4 pad rows while LPP has 8; top and bottom halves cover different octaves.
-
-const moveControlToLppNoteMapTop = new Map([
-    [55, 80], [54, 70], [62, 91], [63, 92], [85, 20],
-    [43, 89], [42, 79], [41, 69], [40, 59],
-    [50, 94], [49, 90], [119, 60], [51, 93], [52, 97],
-    [88, 2], [56, 1], [86, 10], [60, 50], [58, 3],
-    [118, 98], [99, 99]
-]);
-
-const lppNoteToMoveControlMapTop = new Map(
-    [...moveControlToLppNoteMapTop.entries()].map((a) => [a[1], a[0]])
-);
-
-const moveControlToLppNoteMapBottom = new Map([
-    [55, 80], [54, 70], [62, 91], [63, 92], [85, 20],
-    [43, 49], [42, 39], [41, 29], [40, 19],
-    [50, 94], [49, 90], [119, 60], [51, 93], [52, 97],
-    [88, 2], [56, 1], [86, 10], [60, 50], [58, 3],
-    [118, 98], [99, 99]
-]);
-
-const lppNoteToMoveControlMapBottom = new Map(
-    [...moveControlToLppNoteMapBottom.entries()].map((a) => [a[1], a[0]])
-);
-
-/* ── Move ↔ LPP pad mappings ─────────────────────────────────────────────── */
-// Source: [M8-LPP] — maps LPP pad note numbers to Move pad note numbers.
-// Steps row (notes 101–108) maps to Move's step buttons (notes 16–30 even).
-// Two layouts (top/bottom) cover the full LPP 8×8 pad grid across Move's 4×8.
-
-const lppPadToMovePadMapTop = new Map([
-    [81, 92], [82, 93], [83, 94], [84, 95], [85, 96], [86, 97], [87, 98], [88, 99],
-    [71, 84], [72, 85], [73, 86], [74, 87], [75, 88], [76, 89], [77, 90], [78, 91],
-    [61, 76], [62, 77], [63, 78], [64, 79], [65, 80], [66, 81], [67, 82], [68, 83],
-    [51, 68], [52, 69], [53, 70], [54, 71], [55, 72], [56, 73], [57, 74], [58, 75],
-    [101, 16], [102, 18], [103, 20], [104, 22], [105, 24], [106, 26], [107, 28], [108, 30]
-]);
-
-const moveToLppPadMapTop = new Map(
-    [...lppPadToMovePadMapTop.entries()].map((a) => [a[1], a[0]])
-);
-
-const lppPadToMovePadMapBottom = new Map([
-    [41, 92], [42, 93], [43, 94], [44, 95], [45, 96], [46, 97], [47, 98], [48, 99],
-    [31, 84], [32, 85], [33, 86], [34, 87], [35, 88], [36, 89], [37, 90], [38, 91],
-    [21, 76], [22, 77], [23, 78], [24, 79], [25, 80], [26, 81], [27, 82], [28, 83],
-    [11, 68], [12, 69], [13, 70], [14, 71], [15, 72], [16, 73], [17, 74], [18, 75],
-    [101, 16], [102, 18], [103, 20], [104, 22], [105, 24], [106, 26], [107, 28], [108, 30]
-]);
-
-const moveToLppPadMapBottom = new Map(
-    [...lppPadToMovePadMapBottom.entries()].map((a) => [a[1], a[0]])
-);
-
-/* ── LED color palette ───────────────────────────────────────────────────── */
-// Move LED color values (right-hand side) are Move-specific constants derived
-// from [MOVE]. LPP color index keys used in lppColorToMoveColorMap below are
-// from [LPP3] §7 (Colour Palette), translated to the nearest Move LED value.
-
-const light_grey = 0x7c;
-const dim_grey   = 0x10;
-const green      = 0x7e;
-const navy       = 0x7d;
-const sky        = 0x5f;
-const red        = 0x7f;
-const azure      = 0x63;
-const white      = 0x7a;
-const pink       = 0x6d;
-const aqua       = 0x5a;
-const black      = 0x00;
-const lemonade   = 0x6b;
-const lime       = 0x20;
-const fern       = 0x55;
-
-const lppColorToMoveColorMap = new Map([
-    [0x15, green], [0x17, lime], [0x1, light_grey], [0x05, red], [0x03, white],
-    [0x4e, sky], [0x47, pink], [0x13, aqua], [0x27, navy], [0x2b, azure], [0x16, fern]
-]);
-
-const lppColorToMoveMonoMap = new Map([
-    [0x05, 0x7f], [0x78, 0x7f], [0x01, 0x10], [0x07, 0x0f]
-]);
-
-/* ── Move hardware CC/note constants ─────────────────────────────────────── */
-// Source: [ABLETON] — CC and note numbers for Move hardware controls, as
-// documented in the Ableton Move manual.
-
-const moveLOGO    = 99;
-const moveMENU    = 50;
-const moveBACK    = 51;
-const moveCAP     = 52;
-const moveSHIFT   = 49;
-const moveWHEEL   = 3;
-const movePLAY    = 85;
-const moveREC     = 86;
-const moveLOOP    = 58;
-const moveMUTE    = 88;
-const moveUNDO    = 56;
-const moveTRACK1  = 16;
-const moveSAMPLE  = 118;
-const moveWHEELTouch = 9;
+import {
+    clamp, clampMidi, decodeMoveKnobDelta,
+    moveLOGO, moveMENU, moveBACK, moveCAP, moveSHIFT, moveWHEEL,
+    movePLAY, moveREC, moveLOOP, moveMUTE, moveUNDO,
+    moveTRACK1, moveSAMPLE, moveWHEELTouch, moveKnobCcs, moveGridRows,
+    light_grey, dim_grey, green, navy, sky, red, azure, white,
+    pink, aqua, black, lemonade, lime, fern,
+    lppColorToMoveColorMap, lppColorToMoveMonoMap,
+    lppNotes, lppNoteValueMap,
+    moveControlToLppNoteMapTop, lppNoteToMoveControlMapTop,
+    moveControlToLppNoteMapBottom, lppNoteToMoveControlMapBottom,
+    lppPadToMovePadMapTop, moveToLppPadMapTop,
+    lppPadToMovePadMapBottom, moveToLppPadMapBottom,
+    sendMovePad, sendMoveControl, sendExternalMidi, aftertouchToModwheel,
+} from './midi_utils.mjs';
 
 /* ── Bank aliases ────────────────────────────────────────────────────────── */
 
@@ -192,7 +64,7 @@ function isM8Bank(bank) {
 
 /* ── Custom device banks ─────────────────────────────────────────────────── */
 
-const CUSTOM_BANKS_PATH = '/data/UserData/move-anything/modules/movemap/config/custom_banks.json';
+const CUSTOM_BANKS_PATH = '/data/UserData/movemap/config/custom_banks.json';
 
 let customBanks = [];
 
@@ -204,9 +76,11 @@ function loadCustomBanks() {
         customBanks = [];
     }
     for (const bank of customBanks) {
+        // Support both flat { knobs } and multi-page { pages } schemas (backward compatible).
+        const initialKnobs = (bank.pages ? (bank.pages[0]?.knobs ?? []) : (bank.knobs ?? []));
         configurePotBank(bank.id, {
             channel: bank.channel,
-            volumeCcs: bank.knobs.map(k => k.cc),
+            volumeCcs: initialKnobs.map(k => k.cc),
         });
     }
 }
@@ -219,23 +93,22 @@ function getCustomBank(bank) {
     return customBanks.find(b => b.id === bank) ?? null;
 }
 
+// Returns the active page object { name, knobs } for a bank.
+// Falls back to a synthetic page from flat bank.knobs for backward compatibility.
+function getActivePage(bankObj) {
+    if (!bankObj) return { knobs: [] };
+    if (!bankObj.pages) return { knobs: bankObj.knobs ?? [] };
+    const idx = Math.min(activePage[bankObj.id] ?? 0, bankObj.pages.length - 1);
+    return bankObj.pages[idx] ?? { knobs: [] };
+}
+
 // Built after loadCustomBanks() — fixed banks first, then custom, then ABLETON at end.
 let BANK_ORDER = [BANK_M8_TRACK, BANK_M8_MASTER, BANK_M8_FX, BANK_ABLETON];
 
 function buildBankOrder() {
-    BANK_ORDER = [BANK_M8_TRACK, BANK_M8_MASTER, BANK_M8_FX, ...customBanks.map(b => b.id), BANK_ABLETON];
+    const m8Banks = movemapConfig.m8Enabled ? [BANK_M8_TRACK, BANK_M8_MASTER, BANK_M8_FX] : [];
+    BANK_ORDER = [...m8Banks, ...customBanks.map(b => b.id), BANK_ABLETON];
 }
-
-/* ── Move grid layout ────────────────────────────────────────────────────── */
-
-const moveGridRows = [
-    [92, 93, 94, 95, 96, 97, 98, 99],
-    [84, 85, 86, 87, 88, 89, 90, 91],
-    [76, 77, 78, 79, 80, 81, 82, 83],
-    [68, 69, 70, 71, 72, 73, 74, 75]
-];
-
-const moveKnobCcs = [71, 72, 73, 74, 75, 76, 77, 78, 79, 80];
 
 /* ── YURS / Ableton config ───────────────────────────────────────────────── */
 
@@ -292,6 +165,9 @@ let sysexBuffer       = [];
 
 // Track → custom bank bindings: { "0": "juno-60", "1": "dx7", ... }
 let trackBankBindings = {};
+
+// Active page per custom bank: { [bankId]: pageIndex }
+let activePage = {};
 
 // Knob value overlay: set when a knob is touched or turned in a custom bank.
 // { potIndex, clearAt } — clearAt is a tick count after which overlay redraws the label grid.
@@ -365,20 +241,7 @@ function buildAbletonBankQueue() {
     ledQueue.push(() => drawBankIndicator());
 }
 
-/* ── MIDI send helpers ───────────────────────────────────────────────────── */
-
-function sendMovePad(note, color) {
-    move_midi_internal_send([0 << 4 | 0x9, 0x90, note, clampMidi(color)]);
-}
-
-function sendMoveControl(controlNumber, value) {
-    move_midi_internal_send([0 << 4 | 0xb, 0xB0, controlNumber, clampMidi(value)]);
-}
-
-function sendExternalMidi(status, data1, data2) {
-    const cin = (status & 0xf0) >> 4;
-    move_midi_external_send([2 << 4 | cin, status, data1, data2]);
-}
+/* ── Ableton send helpers ────────────────────────────────────────────────── */
 
 function sendAbletonCC(cc, value) {
     sendExternalMidi(0xb0 | yursProfile.midiChannel, cc, clampMidi(value));
@@ -411,33 +274,41 @@ function drawAbletonMacroDisplay() {
 }
 
 function drawCustomBankDisplay() {
-    const bank = getCustomBank(activeBank);
-    if (!bank) return;
+    const bankObj = getCustomBank(activeBank);
+    if (!bankObj) return;
     if (typeof clear_screen !== 'function' || typeof print !== 'function') return;
+    const page = getActivePage(bankObj);
     clear_screen();
-    // Line 0: bank name + channel
-    print(0, 0, `${bank.name.slice(0, 12)}  ch${bank.channel + 1}`, 1);
-    // Lines 1-4: knob labels in 2-column layout  (label truncated to 8 chars)
-    for (let i = 0; i < bank.knobs.length && i < 8; i++) {
+    // Line 0: bank name + either page indicator (multi-page) or channel number
+    if (bankObj.pages && bankObj.pages.length > 1) {
+        const pageIdx = (activePage[bankObj.id] ?? 0) + 1;
+        const pageTotal = bankObj.pages.length;
+        print(0, 0, `${bankObj.name.slice(0, 8)}  [${pageIdx}/${pageTotal}]`, 1);
+    } else {
+        print(0, 0, `${bankObj.name.slice(0, 12)}  ch${bankObj.channel + 1}`, 1);
+    }
+    // Lines 1-4: knob labels in 2-column layout
+    for (let i = 0; i < page.knobs.length && i < 8; i++) {
         const row = Math.floor(i / 2);
         const col = i % 2;
-        print(col * 64, 10 + row * 13, `${i + 1}:${bank.knobs[i].label}`, 1);
+        print(col * 64, 10 + row * 13, `${i + 1}:${page.knobs[i].label}`, 1);
     }
     // Knob 9 (index 8) on its own line if present
-    if (bank.knobs.length >= 9) {
-        print(0, 10 + 4 * 13, `9:${bank.knobs[8].label}`, 1);
+    if (page.knobs.length >= 9) {
+        print(0, 10 + 4 * 13, `9:${page.knobs[8].label}`, 1);
     }
 }
 
 function showKnobOverlay(potIndex) {
     knobOverlay = { potIndex, clearAt: tickCount + OVERLAY_TICKS };
-    const bank = getCustomBank(activeBank);
-    if (!bank || typeof clear_screen !== 'function' || typeof print !== 'function') return;
-    const knob = bank.knobs[potIndex];
+    const bankObj = getCustomBank(activeBank);
+    if (!bankObj || typeof clear_screen !== 'function' || typeof print !== 'function') return;
+    const page = getActivePage(bankObj);
+    const knob = page.knobs[potIndex];
     if (!knob) return;
     const value = getPotValue(activeBank, potIndex);
     clear_screen();
-    print(0, 0, bank.name.slice(0, 12), 1);
+    print(0, 0, bankObj.name.slice(0, 12), 1);
     print(0, 20, knob.label, 1);
     // Value bar: fill proportional to value/127 across 120px
     const barW = Math.round((value / 127) * 120);
@@ -649,14 +520,6 @@ function arraysAreEqual(a, b) {
 
 function mapYursColor(velocity) {
     return lppColorToMoveColorMap.get(velocity) ?? velocity;
-}
-
-function decodeMoveKnobDelta(value) {
-    if (value === 1)   return 1;
-    if (value === 127) return -1;
-    if (value > 1 && value < 64)  return value;
-    if (value > 64) return value - 128;
-    return 0;
 }
 
 function updateEncoderValue(currentValue, rawValue) {
@@ -1022,12 +885,32 @@ globalThis.init = function () {
     loadCustomBanks();
     buildBankOrder();
 
-    // Restore persisted state (bank, track selection).
+    // Restore persisted state (bank, track, bindings, page).
     loadParams();
-    const savedBank = getParam('activeBank', BANK_M8_TRACK);
-    // Validate: if a saved custom bank was removed, fall back to M8_TRACK.
-    activeBank = BANK_ORDER.includes(savedBank) ? savedBank : BANK_M8_TRACK;
+    const fallbackBank = BANK_ORDER[0] ?? BANK_ABLETON;
+    const savedBank = getParam('activeBank', fallbackBank);
+    // Validate: if a saved bank was removed (e.g. custom bank deleted), fall back gracefully.
+    activeBank = BANK_ORDER.includes(savedBank) ? savedBank : fallbackBank;
     selectedTrackIndex = getParam('selectedTrackIndex', 0);
+
+    try {
+        const savedBindings = getParam('trackBankBindings', '{}');
+        trackBankBindings = JSON.parse(savedBindings);
+    } catch (_) { trackBankBindings = {}; }
+
+    try {
+        const savedActivePage = getParam('activePage', '{}');
+        activePage = JSON.parse(savedActivePage);
+    } catch (_) { activePage = {}; }
+
+    // Re-apply any non-zero saved pages so configurePotBank has the right CCs.
+    for (const bank of customBanks) {
+        const pi = activePage[bank.id] ?? 0;
+        if (pi > 0 && bank.pages && bank.pages[pi]) {
+            configurePotBank(bank.id, { volumeCcs: bank.pages[pi].knobs.map(k => k.cc) });
+        }
+    }
+
     setPotBank(activeBank);
     setPotTrack(selectedTrackIndex);
 
@@ -1093,6 +976,21 @@ globalThis.onMidiMessageInternal = function (data) {
 
     if (isCustomBank(activeBank)) {
         if (isCC) {
+            // Shift+Jog click → advance page (multi-page banks only)
+            if (data[1] === moveWHEEL && data[2] === 0x7f && shiftHeld) {
+                const bankObj = getCustomBank(activeBank);
+                if (bankObj && bankObj.pages && bankObj.pages.length > 1) {
+                    const current = activePage[activeBank] ?? 0;
+                    activePage[activeBank] = (current + 1) % bankObj.pages.length;
+                    const newPage = getActivePage(bankObj);
+                    configurePotBank(activeBank, { volumeCcs: newPage.knobs.map(k => k.cc) });
+                    setParam('activePage', JSON.stringify(activePage));
+                    knobOverlay = null;
+                    drawCustomBankDisplay();
+                    drawBankIndicator();
+                }
+                return;
+            }
             // Track buttons (CC 40–43, reversed: CC43=T1 CC40=T4)
             const trackCCs = [43, 42, 41, 40];
             const tIdx = trackCCs.indexOf(data[1]);

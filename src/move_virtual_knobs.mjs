@@ -15,9 +15,7 @@
  * https://www.ableton.com/en/move/manual/
  */
 
-function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
-}
+import { clamp, decodeMoveKnobDelta } from './midi_utils.mjs';
 
 export const POT_BANKS = {
     M8_TRACK: "M8_TRACK",
@@ -103,20 +101,12 @@ export function configurePotBank(bank, overrides = {}) {
     potValues[bank] = fresh[bank];
 }
 
-function decodeDelta(value) {
-    if (value === 1) return 1;
-    if (value === 127) return -1;
-    if (value > 1 && value < 64) return value;
-    if (value > 64) return value - 128;
-    return 0;
-}
-
 function nextPotValue(bank, potIndex, rawValue, trackIndex = 0) {
     const store = potValues[bank][trackIndex] ?? [];
     const current = store[potIndex] ?? 0;
 
     let next = rawValue;
-    const delta = decodeDelta(rawValue);
+    const delta = decodeMoveKnobDelta(rawValue);
     if (delta !== 0) {
         next = current + delta;
     }

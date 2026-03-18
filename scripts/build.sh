@@ -15,10 +15,11 @@ rm -rf "$DIST"
 mkdir -p "$DIST/config"
 
 # Copy module files
-cp "$REPO_ROOT/src/module.json"                "$DIST/"
+# module.json (move-anything descriptor) intentionally omitted — movemap-runner owns startup
 cp "$REPO_ROOT/src/ui.mjs"                     "$DIST/"
 cp "$REPO_ROOT/src/move_virtual_knobs.mjs"     "$DIST/"
 cp "$REPO_ROOT/src/params.mjs"                 "$DIST/"
+cp "$REPO_ROOT/src/midi_utils.mjs"             "$DIST/"
 cp "$REPO_ROOT/src/config/movemap_config.mjs"  "$DIST/config/"
 cp "$REPO_ROOT/src/config/custom_banks.json"  "$DIST/config/"
 
