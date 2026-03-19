@@ -1,1 +1,61 @@
-[]
+[
+  {
+    "id": "nks",
+    "name": "NKS",
+    "channel": 15,
+    "pages": [
+      {
+        "name": "Page 1",
+        "knobs": [
+          { "label": "Param1", "cc": 21 },
+          { "label": "Param2", "cc": 22 },
+          { "label": "Param3", "cc": 23 },
+          { "label": "Param4", "cc": 24 },
+          { "label": "Param5", "cc": 25 },
+          { "label": "Param6", "cc": 26 },
+          { "label": "Param7", "cc": 27 },
+          { "label": "Param8", "cc": 28 }
+        ]
+      },
+      {
+        "name": "Page 2",
+        "knobs": [
+          { "label": "Param1", "cc": 29 },
+          { "label": "Param2", "cc": 30 },
+          { "label": "Param3", "cc": 31 },
+          { "label": "Param4", "cc": 32 },
+          { "label": "Param5", "cc": 33 },
+          { "label": "Param6", "cc": 34 },
+          { "label": "Param7", "cc": 35 },
+          { "label": "Param8", "cc": 36 }
+        ]
+      },
+      {
+        "name": "Page 3",
+        "knobs": [
+          { "label": "Param1", "cc": 37 },
+          { "label": "Param2", "cc": 38 },
+          { "label": "Param3", "cc": 39 },
+          { "label": "Param4", "cc": 40 },
+          { "label": "Param5", "cc": 41 },
+          { "label": "Param6", "cc": 42 },
+          { "label": "Param7", "cc": 43 },
+          { "label": "Param8", "cc": 44 }
+        ]
+      },
+      {
+        "name": "Page 4",
+        "knobs": [
+          { "label": "Param1", "cc": 45 },
+          { "label": "Param2", "cc": 46 },
+          { "label": "Param3", "cc": 47 },
+          { "label": "Param4", "cc": 48 },
+          { "label": "Param5", "cc": 49 },
+          { "label": "Param6", "cc": 50 },
+          { "label": "Param7", "cc": 51 },
+          { "label": "Param8", "cc": 52 }
+        ]
+      }
+    ]
+  }
+]

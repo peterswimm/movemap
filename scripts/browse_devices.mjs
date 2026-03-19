@@ -165,9 +165,10 @@ function displayParamList(params) {
     return indexed;
 }
 
-async function pickKnobs(indexed) {
+async function pickKnobs(indexed, pageLabel = '') {
     const chosen = [];
-    console.log(`\nAssign up to ${MAX_KNOBS} params to knobs (enter numbers, one per line, or "done"):`)
+    const label = pageLabel ? ` (${pageLabel})` : '';
+    console.log(`\nAssign up to ${MAX_KNOBS} params to knobs${label} (enter numbers, one per line, or "done"):`);
     for (let knob = 1; knob <= MAX_KNOBS; knob++) {
         const raw = await ask(`  Knob ${knob}> `);
         if (raw === '' || raw.toLowerCase() === 'done') break;
@@ -220,10 +221,6 @@ async function run() {
     if (params.length === 0) { console.log('No CC params found for this device.'); rl.close(); return; }
     const indexed = displayParamList(params);
 
-    // Assign knobs
-    const knobs = await pickKnobs(indexed);
-    if (knobs.length === 0) { console.log('\nNo knobs assigned — nothing saved.'); rl.close(); return; }
-
     // Bank metadata
     const defaultName = truncate(device, 16);
     const rawName = await ask(`\nBank name [${defaultName}]> `);
@@ -231,6 +228,25 @@ async function run() {
 
     const rawCh = await ask(`MIDI channel (1–16) [1]> `);
     const channel = Math.max(1, Math.min(16, parseInt(rawCh, 10) || 1)) - 1; // 0-indexed
+
+    // Assign knobs — may span multiple pages
+    let pages = [];
+    let pageNum = 1;
+    while (true) {
+        const pageLabel = pages.length === 0 ? '' : `Page ${pageNum}`;
+        const knobs = await pickKnobs(indexed, pageLabel);
+        if (knobs.length === 0 && pages.length === 0) {
+            console.log('\nNo knobs assigned — nothing saved.');
+            rl.close();
+            return;
+        }
+        if (knobs.length > 0) {
+            pages.push({ name: `Page ${pageNum}`, knobs });
+        }
+        const more = await ask(`\nAdd another page? [y/N]> `);
+        if (more.toLowerCase() !== 'y') break;
+        pageNum++;
+    }
 
     // Generate safe ID
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -244,13 +260,18 @@ async function run() {
     // Remove any existing bank with the same id
     banks = banks.filter(b => b.id !== id);
 
-    const entry = { id, name, source, channel, knobs };
+    // Single-page banks use flat { knobs } for brevity; multi-page use { pages }.
+    const entry = pages.length === 1
+        ? { id, name, source, channel, knobs: pages[0].knobs }
+        : { id, name, source, channel, pages };
     banks.push(entry);
 
     writeFileSync(CUSTOM_BANKS_PATH, JSON.stringify(banks, null, 2) + '\n', 'utf8');
 
+    const totalKnobs = (entry.pages ?? [entry]).reduce((s, p) => s + (p.knobs?.length ?? 0), 0);
+    const pageCount = entry.pages ? entry.pages.length : 1;
     console.log(`\nBank '${name}' saved to src/config/custom_banks.json`);
-    console.log(`  ${knobs.length} knobs assigned on MIDI channel ${channel + 1}`);
+    console.log(`  ${pageCount} page(s), ${totalKnobs} knobs total, MIDI channel ${channel + 1}`);
     console.log('\nNext step: bash scripts/build.sh');
 
     rl.close();
