@@ -1,0 +1,24 @@
+[package]
+name = "movemap-runner"
+version = "0.1.0"
+edition = "2021"
+description = "JACK client host for MoveMap — MIDI control surface + M8 audio bridge"
+
+[dependencies]
+# JACK2 client
+jack = "0.13"
+
+# QuickJS embedding with ES module support
+rquickjs = { version = "0.11", features = ["full", "loader"] }
+
+# Lock-free SPSC ring buffer — bridges JACK RT thread ↔ QuickJS thread
+ringbuf = "0.4"
+
+# Error handling
+anyhow = "1"
+
+# JSON for state file and config
+serde_json = "1"
+
+# CLI args
+clap = { version = "4", features = ["derive"] }
