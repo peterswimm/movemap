@@ -30,7 +30,7 @@ impl Default for RunnerConfig {
     fn default() -> Self {
         Self {
             // Best-guess defaults — verify with `jack_lsp` on the device
-            internal_midi_port:  "system:midi_capture_1".into(),
+            internal_midi_port:  "system:midi_capture".into(),
             external_midi_ports: vec![],          // empty = auto-connect all
             audio_src_l:         "M8:out_1".into(),
             audio_src_r:         "M8:out_2".into(),

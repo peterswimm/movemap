@@ -38,18 +38,30 @@ pub fn run(
     mut midi_in: HeapCons<Packet>,
     midi_out:    Arc<Mutex<HeapProd<OutPacket>>>,
 ) -> Result<()> {
+    // Set cwd to module_dir so FileResolver's RelativePath checks work
+    std::env::set_current_dir(&module_dir)
+        .with_context(|| format!("cannot chdir to {}", module_dir.display()))?;
+
     // -- Runtime with file-based ES module resolver --------------------------
     let rt = Runtime::new()?;
     rt.set_loader(
         FileResolver::default()
-            .with_path(module_dir.to_str().context("non-UTF8 module path")?),
-        ScriptLoader::default(),
+            .with_path(module_dir.to_str().context("non-UTF8 module path")?)
+            .with_pattern("{}.mjs"),
+        ScriptLoader::default().with_extension("mjs"),
     );
 
     let ctx = JsContext::full(&rt)?;
 
     ctx.with(|ctx| -> rquickjs::Result<()> {
         let globals = ctx.globals();
+
+        // Minimal console shim
+        let console = rquickjs::Object::new(ctx.clone())?;
+        console.set("log",   Function::new(ctx.clone(), |msg: String| eprintln!("[js] {msg}"))? )?;
+        console.set("warn",  Function::new(ctx.clone(), |msg: String| eprintln!("[js:warn] {msg}"))? )?;
+        console.set("error", Function::new(ctx.clone(), |msg: String| eprintln!("[js:error] {msg}"))? )?;
+        globals.set("console", console)?;
 
         // host_read_file(path) → string | null
         globals.set(
@@ -90,8 +102,19 @@ pub fn run(
 
         // Load main module — FileResolver handles ./midi_utils.mjs etc.
         let ui_src = std::fs::read_to_string(module_dir.join("ui.mjs"))
-            .map_err(|_| rquickjs::Error::Unknown)?;
-        Module::evaluate(ctx.clone(), "ui.mjs", ui_src)?;
+            .map_err(|e| { eprintln!("[movemap] failed to read ui.mjs: {e}"); rquickjs::Error::Unknown })?;
+        eprintln!("[movemap] evaluating ui.mjs...");
+        Module::evaluate(ctx.clone(), "ui.mjs", ui_src).map_err(|e| {
+            if let rquickjs::Error::Exception = e {
+                if let Ok(exc) = ctx.catch().get::<rquickjs::Value>() {
+                    eprintln!("[movemap] ui.mjs JS exception: {:?}", exc);
+                }
+            } else {
+                eprintln!("[movemap] ui.mjs error: {e:?}");
+            }
+            e
+        })?;
+        eprintln!("[movemap] ui.mjs loaded OK");
 
         Ok(())
     })?;
@@ -99,7 +122,18 @@ pub fn run(
     // Call init() after module is fully loaded
     ctx.with(|ctx| -> rquickjs::Result<()> {
         if let Ok(init) = ctx.globals().get::<_, Function>("init") {
-            init.call::<(), ()>(())?;
+            init.call::<(), ()>(()).map_err(|e| {
+                if let rquickjs::Error::Exception = e {
+                    if let Ok(exc) = ctx.catch().get::<rquickjs::Value>() {
+                        eprintln!("[movemap] init() JS exception: {:?}", exc);
+                    }
+                } else {
+                    eprintln!("[movemap] init() error: {e:?}");
+                }
+                e
+            })?;
+        } else {
+            eprintln!("[movemap] warning: init() not found on globalThis");
         }
         Ok(())
     })?;

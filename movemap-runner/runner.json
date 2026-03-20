@@ -1,0 +1,9 @@
+{
+  "_comment": "Verified port names from RNBO OSC API on AbletonOS aarch64 RPi4 (2026-03-19). M8 MIDI arrives on midi_capture_ext (USB-A handled by Move MCU via SPI). M8 audio via system:capture_1/2.",
+  "internal_midi_port": "system:midi_capture",
+  "external_midi_ports": ["system:midi_capture_ext"],
+  "audio_src_l": "system:capture_1",
+  "audio_src_r": "system:capture_2",
+  "audio_dst_l": "system:playback_1",
+  "audio_dst_r": "system:playback_2"
+}
